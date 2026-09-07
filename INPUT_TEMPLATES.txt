@@ -1,0 +1,51 @@
+================================================================================
+ADSG-GIBBER: CRISIS TELEMETRY INPUT TEMPLATES
+Copy any line under "RAW HEX STREAM", paste it into the terminal, and hit Enter.
+================================================================================
+
+[SCENARIO 1: EARTHQUAKE WITH COLLAPSED ROUTE (DYNAMIC REROUTING)]
+Description : High-severity earthquake in Sector South (Zone 2). Route A is crushed. Route B is clear.
+Expected    : Model detects Route A failure, switches evacuation route to Route B.
+RAW HEX STREAM:
+0x01 0x12 0x23 0x62 0x41 0x42 0x44 0x46 0x48 0x03
+
+--------------------------------------------------------------------------------
+
+[SCENARIO 2: INDOOR ELECTRICAL FIRE (CRITICAL ESCALATION)]
+Description : Critical fire in Sector East (Zone 3). Immediate structural life hazard.
+Expected    : Max priority (PRIO_CRITICAL), instant evacuation, full alarm sirens engaged.
+RAW HEX STREAM:
+0x01 0x13 0x24 0x63 0x40 0x42 0x44 0x46 0x48 0x03
+
+--------------------------------------------------------------------------------
+
+[SCENARIO 3: SENSOR GLITCH / WEAK SIGNAL (FALSE ALARM SUPPRESSION)]
+Description : Low-confidence water leak sensor reading in Sector West (Zone 4).
+Expected    : Warning priority only, set to MONITOR, audible alarm suppressed (OFF).
+RAW HEX STREAM:
+0x01 0x14 0x26 0x60 0x40 0x42 0x45 0x47 0x49 0x03
+
+--------------------------------------------------------------------------------
+
+[SCENARIO 4: SEVERE MONSOON FLOODING (DUAL ROUTE CLEAR)]
+Description : Critical drain overflow & flash flood in Sector North (Zone 1). Both routes open.
+Expected    : Evacuate using primary Route A with maximum alarm sirens.
+RAW HEX STREAM:
+0x01 0x11 0x20 0x62 0x40 0x42 0x44 0x46 0x48 0x03
+
+--------------------------------------------------------------------------------
+
+[SCENARIO 5: TRAPPED CIVILIANS / MEDICAL EMERGENCY]
+Description : SOS medical request in Zone 1. Route A open, no general evacuation needed.
+Expected    : Dispatch Aid (CMD_DISP_AID), notify HQ, keep general sirens silent.
+RAW HEX STREAM:
+0x01 0x11 0x28 0x62 0x40 0x42 0x45 0x46 0x49 0x03
+
+================================================================================
+TOKEN DIALECT REFERENCE:
+0x01=BOS  | 0x03=SEP
+0x11-0x14 = Zones 1 to 4
+0x20=Flood | 0x23=Quake | 0x24=Fire | 0x26=Water Leak | 0x28=Medical
+0x40=Route A OK | 0x41=Route A BLOCKED | 0x42=Route B OK | 0x43=Route B BLOCKED
+0x60=Low Conf   | 0x62=High Conf       | 0x63=Critical Conf
+================================================================================
