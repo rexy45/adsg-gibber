@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+ADSG-Gibber: Interactive Custom Telemetry Tester
+Allows custom input entry via friendly interactive menus or raw hex strings.
+"""
+
+import torch
+from test_and_train import Tokens, MicroTransformer, tokens_to_names, tokens_to_hex
+
+def load_engine():
+    model = MicroTransformer()
+    model.load_state_dict(torch.load("adsg_model.pth", weights_only=True))
+    model.eval()
+    return model
+
+def print_menu(title, options):
+    print(f"\n--- {title} ---")
+    for idx, (name, _) in enumerate(options, 1):
+        print(f"[{idx}] {name}")
+    while True:
+        choice = input("Select option (number): ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(options):
+            return options[int(choice) - 1][1]
+        print("Invalid selection. Try again.")
+
+def interactive_builder():
+    zones = [
+        ("Zone 1 (Sector North)", Tokens.ZONE_1),
+        ("Zone 2 (Sector South)", Tokens.ZONE_2),
+        ("Zone 3 (Sector East)",  Tokens.ZONE_3),
+        ("Zone 4 (Sector West)",  Tokens.ZONE_4),
+    ]
+    hazards = [
+        ("Flooding (Water Level Breach)", Tokens.SIG_FLOOD),
+        ("Heavy Rain / Monsoon Inundation", Tokens.SIG_RAIN_HIGH),
+        ("Drain Overflow", Tokens.SIG_DRAIN_OVF),
+        ("Earthquake / Structural Vibration", Tokens.SIG_QUAKE),
+        ("Electrical Fire (Indoor)", Tokens.SIG_ELEC_FIRE),
+        ("LPG Gas Cylinder Leak", Tokens.SIG_LPG_LEAK),
+        ("Water Pipe Rupture", Tokens.SIG_WATER_LEAK),
+        ("Perimeter Intrusion", Tokens.SIG_INTRUSION),
+        ("Medical Emergency Request", Tokens.SIG_MED_REQ),
+    ]
+    confidences = [
+        ("Low Confidence (Single noisy sensor)", Tokens.CONF_LOW),
+        ("Medium Confidence (Dual sensor confirmation)", Tokens.CONF_MED),
+        ("High Confidence (Verified sensor cluster)", Tokens.CONF_HIGH),
+        ("Critical Severity (Immediate life risk)", Tokens.CONF_CRIT),
+    ]
+    routes_a = [
+        ("Route A is CLEAR (RTE_A_OK)", Tokens.RTE_A_OK),
+        ("Route A is BLOCKED / Collapsed (RTE_A_BLOCKED)", Tokens.RTE_A_BLOCKED),
+    ]
+    routes_b = [
+        ("Route B is CLEAR (RTE_B_OK)", Tokens.RTE_B_OK),
+        ("Route B is BLOCKED / Flooded (RTE_B_BLOCKED)", Tokens.RTE_B_BLOCKED),
+    ]
+
+    print("\n=======================================================")
+    print("      ADSG-GIBBER TELEMETRY PACKET BUILDER")
+    print("=======================================================")
+
+    z = print_menu("Select Crisis Zone", zones)
+    h = print_menu("Select Primary Hazard", hazards)
+    c = print_menu("Select Confidence Level", confidences)
+    ra = print_menu("Select Status for Primary Route A", routes_a)
+    rb = print_menu("Select Status for Secondary Route B", routes_b)
+
+    # Standard emergency grid defaults
+    evac_status = Tokens.RES_EVAC_OK
+    aid_status = Tokens.RES_AID_OK if h in (Tokens.SIG_MED_REQ, Tokens.SIG_QUAKE) else Tokens.RES_AID_NO
+    alarm_status = Tokens.RES_ALARM_OK if c != Tokens.CONF_LOW else Tokens.RES_ALARM_NO
+
+    prompt = [Tokens.BOS, z, h, c, ra, rb, evac_status, aid_status, alarm_status, Tokens.SEP]
+    return prompt
+
+def run_inference(model, prompt):
+    print("\n" + "=" * 65)
+    print("TRANSMITTING TELEMETRY TO XIAO ESP32-S3 CORE...")
+    print(f"Raw Byte Stream : {tokens_to_hex(prompt)}")
+    print(f"Decoded Packet  : {tokens_to_names(prompt)}")
+    print("-" * 65)
+
+    input_tensor = torch.tensor([prompt], dtype=torch.long)
+    with torch.no_grad():
+        output = model.generate(input_tensor, max_new_tokens=8)[0].tolist()
+
+    sep_idx = output.index(Tokens.SEP)
+    decision = output[sep_idx + 1:]
+
+    print("AUTONOMOUS EDGE DIRECTIVE GENERATED:")
+    print(f"Raw Byte Stream : {tokens_to_hex(decision)}")
+    print(f"Decoded Actions : {tokens_to_names(decision)}")
+    print("=" * 65)
+
+def main():
+    model = load_engine()
+    print("\nLoaded ADSG-Gibber Engine (136k Parameters).")
+    print("[1] Build a scenario step-by-step (Interactive Menu)")
+    print("[2] Enter custom raw hex bytes directly (e.g. 0x01 0x12 0x20 ...)")
+    
+    mode = input("\nChoose test mode (1 or 2): ").strip()
+    if mode == "2":
+        raw = input("Enter hex tokens separated by spaces: ").strip()
+        try:
+            prompt = [int(tok, 16) for tok in raw.split()]
+            if prompt[0] != Tokens.BOS: prompt.insert(0, Tokens.BOS)
+            if prompt[-1] != Tokens.SEP: prompt.append(Tokens.SEP)
+            run_inference(model, prompt)
+        except Exception as e:
+            print(f"Error parsing hex string: {e}")
+    else:
+        prompt = interactive_builder()
+        run_inference(model, prompt)
+
+if __name__ == "__main__":
+    main()
